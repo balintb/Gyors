@@ -1,4 +1,4 @@
-# Gyors
+# [Gyors](https://gyo.rs)
 
 A keyboard-first launcher for macOS. Native SwiftUI shell, Rust core.
 
@@ -46,8 +46,6 @@ flowchart TB
 | `gyors-ipc` | swift-bridge FFI exposed to the Swift shell |
 | `gyors-sync` | Optional E2E-encrypted sync client (alpha) |
 | `gyors-cli` | Headless CLI (bin: `gyors`) - query, plugin scaffold/validate/test |
-
-These are internal workspace crates and are not published to crates.io.
 
 ## Quickstart
 
@@ -168,18 +166,9 @@ Examples: `"cmd+space"`, `"ctrl+alt+k"`, `"opt shift space"`.
 
 ### Cloud sync (alpha)
 
-Optional. Gyors can sync notes, snippets, themes, and clipboard
-history between Macs via an end-to-end encrypted protocol. Items
-leave your machine as opaque ciphertext; the server only sees
-namespace + id + version + blob.
+Optional. Gyors can sync notes, snippets, themes, and clipboard history between Macs via E2E. Items leave your mac as opaque ciphertext; server only sees namespace + id + version + blob.
 
-Status: **alpha**. The protocol and on-wire formats may change. The
-default endpoint (`https://api.gyo.rs`) is operated by me and offered
-without warranty or uptime guarantees.
-
-Self-hosting: the server (`gyors-cloud`, not in this repo yet) is a
-Cloudflare Worker + D1 deployment. Once it's open-sourced, point the
-client at your own deployment via the `GYORS_SYNC_BASE` env var.
+Status: **alpha**.
 
 Omit entirely from the build:
 
@@ -187,17 +176,13 @@ Omit entirely from the build:
 WITH_CLOUD=0 ./scripts/build-app.sh release
 ```
 
-That strips the sync FFI, the SyncPanel UI, and the gyors-sync crate
-from the binary - no opt-in network surface at all.
+That strips sync FFI, SyncPanel UI, and the gyors-sync crate from built binary.
 
-The AI provider stack can be omitted the same way:
+AI provider stack can be omitted same way:
 
 ```sh
 WITH_AI=0 ./scripts/build-app.sh release
 ```
-
-Flags compose: `WITH_AI=0 WITH_CLOUD=0` builds a strictly-offline
-launcher.
 
 ### Build requirements
 

@@ -1,0 +1,278 @@
+import AppKit
+import Foundation
+
+/// Dispatches incoming `gyors://` URLs to right action and pops a
+/// confirmation alert for anything with user-visible side effects.
+/// Theme import flow predates this file and lives in
+/// `ThemeImporter`; we route `gyors://theme...` there
+///
+/// URL shapes supported:
+///
+/// ```
+/// gyors://theme?import=<base64>         (existing - theme payload)
+/// gyors://set/<key>?value=<value>       (set a whitelisted setting)
+/// gyors://toggle/<key>                  (flip a whitelisted boolean)
+/// ```
+///
+/// Security: every non-theme action shows a confirmation alert
+/// naming setting and proposed new value. Websites can't change
+/// Gyors state silently - user always sees action
+enum GyorsUrlHandler {
+    /// Settings URL handler is allowed to change. Anything outside
+    /// this list is rejected with a clear error alert. Typed
+    /// whitelist for settings that need custom apply logic:
+    /// expanding `~` on paths, validating hotkey syntax, restarting
+    /// watchers. New bool-only settings should not be added here -
+    /// they flow through schema-driven `.toggleBool` / `.setBool`
+    /// paths, which pick them up automatically from Rust's
+    /// `FIELDS`
+    enum Setting: String, CaseIterable {
+        case theme
+        case hotkey
+        case notesFolder = "notes-folder"
+        case clipboardEnabled = "clipboard-enabled"
+
+        var displayName: String {
+            switch self {
+            case .theme: return "Theme"
+            case .hotkey: return "Global hotkey"
+            case .notesFolder: return "Notes folder"
+            case .clipboardEnabled: return "Clipboard history"
+            }
+        }
+
+        var isBoolean: Bool { self == .clipboardEnabled }
+    }
+
+    enum ParsedAction: Equatable {
+        case theme
+        case set(Setting, String)
+        case toggle(Setting)
+        /// Schema-driven boolean toggle. `jsonKey` is canonical
+        /// config.json key (e.g. `preview_markdown`); `displayName`
+        /// comes from Rust `FIELDS.description`
+        case toggleBool(jsonKey: String, displayName: String)
+        /// Schema-driven boolean set
+        case setBool(jsonKey: String, displayName: String, value: Bool)
+        case openWithQuery(String)
+        /// `gyors://plugin/install?spec=<base64-json>` - plugin
+        /// author deep-link. JSON is either a bare
+        /// ShellPluginSpec or a full .gyorsplugin manifest.
+        /// Installation goes through rich preview panel; user must
+        /// approve
+        case pluginInstall(specJson: String)
+        case invalid(String)
+    }
+
+    /// Pure - parse URL into a structured action. Tests drive this
+    /// exhaustively so the (small, modal-heavy) apply step can stay
+    /// thin
+    static func parse(_ url: URL) -> ParsedAction {
+        guard url.scheme == "gyors" else { return .invalid("not a gyors:// URL") }
+        switch url.host {
+        case "theme":
+            return .theme
+        case "set":
+            return parseSet(url)
+        case "toggle":
+            return parseToggle(url)
+        case "open", "enter":
+            return parseOpen(url)
+        case "plugin":
+            return parsePlugin(url)
+        default:
+            return .invalid("unknown action: \(url.host ?? "(none)")")
+        }
+    }
+
+    /// `gyors://plugin/install?spec=<base64-json>` or
+    /// `gyors://plugin/install?spec=<percent-encoded-json>`
+    ///
+    /// Both shapes accepted because link authors naturally reach
+    /// for one or the other depending on tooling. Either way
+    /// result is a `pluginInstall` action carrying raw JSON;
+    /// install panel handles validation + display
+    private static func parsePlugin(_ url: URL) -> ParsedAction {
+        let subcommand = url.pathComponents.dropFirst().first
+        guard subcommand == "install" else {
+            return .invalid("only plugin/install is supported (got \(subcommand ?? "(nothing)"))")
+        }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        guard let raw = components?.queryItems?
+            .first(where: { $0.name == "spec" })?
+            .value
+        else { return .invalid("plugin install requires ?spec=<base64-json>") }
+
+        // Accept base64 (url-safe) first; fall back to
+        // percent-decoded JSON if that fails. Plugin authors might
+        // use either - neither survives `&`/`=`/`+` in raw URLs,
+        // so one of the two is always needed
+        if let json = decodeBase64UrlSafe(raw), json.hasPrefix("{") {
+            return .pluginInstall(specJson: json)
+        }
+        if let percent = raw.removingPercentEncoding, percent.hasPrefix("{") {
+            return .pluginInstall(specJson: percent)
+        }
+        return .invalid("plugin install `spec` is neither base64 nor percent-encoded JSON")
+    }
+
+    /// URL-safe base64 decode, tolerant of missing padding. Plugin
+    /// install links generated by a CLI often omit padding; GitHub
+    /// URL shorteners sometimes strip `=`
+    private static func decodeBase64UrlSafe(_ s: String) -> String? {
+        var standard = s.replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let rem = standard.count % 4
+        if rem > 0 {
+            standard += String(repeating: "=", count: 4 - rem)
+        }
+        guard let data = Data(base64Encoded: standard),
+              let s = String(data: data, encoding: .utf8) else { return nil }
+        return s
+    }
+
+    /// `gyors://open?query=<text>` / `gyors://enter?text=<text>` -
+    /// opens panel with query pre-filled but NOT executed. Purely
+    /// cosmetic (user can always delete and type something else),
+    /// so no confirmation dialog - risk of a pasted link is same
+    /// as risk of a pasted clipboard payload
+    ///
+    /// privileged sigils (`>` for shell, `>!` for
+    /// force-shell, `&` for chain) take legitimate user input and
+    /// route it to command execution. A website that can spawn
+    /// `gyors://open?q=> ls` pre-fills a shell command - one stray
+    /// Enter and it runs. Reject any query that, after trimming
+    /// whitespace, starts with one of those prefixes. Also reject
+    /// embedded ASCII control characters, which have no business
+    /// in a URL-routed query
+    private static func parseOpen(_ url: URL) -> ParsedAction {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let value = components?.queryItems?
+            .first(where: { $0.name == "query" || $0.name == "text" || $0.name == "q" })?
+            .value
+        let text = (value ?? "").removingPercentEncoding ?? value ?? ""
+        // Reject any embedded ASCII control character (\0..\x1F).
+        // They can survive percent-decoding (`%00`, `%1B`) and
+        // would otherwise sneak through into input field. Tabs
+        // would also be caught here; that's deliberate - a user
+        // can't type a literal tab into panel either, so a
+        // URL-pasted tab is necessarily crafted
+        if text.unicodeScalars.contains(where: { $0.value < 0x20 }) {
+            return .invalid("query contains ASCII control character - rejected")
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Privileged-sigil rejection. Match same prefixes
+        // input-orchestration layer treats as escape hatches into
+        // shell / AppleScript / chain pipelines
+        if trimmed.hasPrefix(">!") || trimmed.hasPrefix(">") || trimmed.hasPrefix("&") {
+            return .invalid("query starts with a privileged sigil (\">\", \">!\", or \"&\") - rejected")
+        }
+        // Empty-query is still a valid request - just open
+        // launcher
+        return .openWithQuery(text)
+    }
+
+    private static func parseSet(_ url: URL) -> ParsedAction {
+        // Accept both `gyors://set/<key>?value=...` (preferred) and
+        // `gyors://set?key=<key>&value=...` for
+        // linkbuilder-friendliness
+        let pathKey = url.pathComponents.dropFirst().first
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryKey = components?.queryItems?.first(where: { $0.name == "key" })?.value
+        let keyRaw = (pathKey ?? queryKey ?? "").trimmingCharacters(in: .whitespaces)
+        if keyRaw.isEmpty {
+            return .invalid("set action requires a key")
+        }
+        let value = components?.queryItems?.first(where: { $0.name == "value" })?.value ?? ""
+        if value.isEmpty {
+            return .invalid("set action requires a non-empty value")
+        }
+        // 1. Typed whitelist - custom apply logic
+        if let setting = Setting(rawValue: keyRaw) {
+            return .set(setting, value)
+        }
+        // 2. Schema-driven bool - accept true/false/on/off/1/0 and
+        //    route through generic path. Adding a new bool to
+        //    Rust's FIELDS makes it automatically addressable here
+        if let field = ConfigSchema.field(bySlug: keyRaw), field.type == ConfigField.FieldType.bool {
+            if let boolValue = parseBoolInput(value) {
+                return .setBool(
+                    jsonKey: field.key,
+                    displayName: field.description,
+                    value: boolValue
+                )
+            }
+            return .invalid("expected true/false/on/off for \"\(keyRaw)\"")
+        }
+        // 3. unknown keys are rejected. Typed whitelist
+        //    and schema-bool path together cover every legitimate
+        //    use; a verbatim `setRaw` write let a confirmation
+        //    prompt propose arbitrary config.json edits, which is
+        //    too much power for a URL handler. New settable keys
+        //    go in typed list or Rust's FIELDS - deliberate
+        //    barrier
+        return .invalid("unknown setting: \"\(keyRaw)\"")
+    }
+
+    private static func parseToggle(_ url: URL) -> ParsedAction {
+        let pathKey = url.pathComponents.dropFirst().first
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryKey = components?.queryItems?.first(where: { $0.name == "key" })?.value
+        let keyRaw = (pathKey ?? queryKey ?? "").trimmingCharacters(in: .whitespaces)
+        // 1. Typed whitelist for bool settings with custom apply
+        //    logic
+        if let setting = Setting(rawValue: keyRaw), setting.isBoolean {
+            return .toggle(setting)
+        }
+        // 2. Schema-driven fallback: any FIELDS entry of type Bool
+        if let field = ConfigSchema.field(bySlug: keyRaw), field.type == ConfigField.FieldType.bool {
+            return .toggleBool(jsonKey: field.key, displayName: field.description)
+        }
+        return .invalid("unknown toggle setting: \"\(keyRaw)\"")
+    }
+
+    private static func parseBoolInput(_ s: String) -> Bool? {
+        switch s.lowercased() {
+        case "true", "1", "on", "yes": return true
+        case "false", "0", "off", "no": return false
+        default: return nil
+        }
+    }
+}
+
+
+/// Shared persistence for URL-driven settings changes. ThemeManager
+/// already had one of these; consolidating here keeps pattern in
+/// one place so future keys dont invent their own write paths
+enum ConfigWriter {
+    /// Persist a raw value under given top-level config.json key.
+    /// Preserves every other existing key
+    static func setKey(_ key: String, value: Any) {
+        let url = Config.configURL()
+        var root: [String: Any] = [:]
+        if let data = try? Data(contentsOf: url),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            root = parsed
+        }
+        root[key] = value
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys]
+        ) else { return }
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try? data.write(to: url, options: [.atomic])
+    }
+
+    /// Read a bool with a default when key is missing or malformed
+    static func readBool(_ key: String, default defaultValue: Bool) -> Bool {
+        let url = Config.configURL()
+        guard let data = try? Data(contentsOf: url),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return defaultValue }
+        return (parsed[key] as? Bool) ?? defaultValue
+    }
+}

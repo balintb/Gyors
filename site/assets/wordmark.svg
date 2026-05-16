@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 240" width="720" height="240">
+  <defs>
+    <linearGradient id="wm-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="55%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#E11D48"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#wm-grad)" font-family="ui-sans-serif, system-ui, -apple-system, 'Inter', 'Helvetica Neue', sans-serif" font-weight="700">
+    <text x="40" y="170" font-size="200" letter-spacing="-8">gyors</text>
+  </g>
+</svg>

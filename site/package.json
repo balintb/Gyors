@@ -1,0 +1,16 @@
+{
+  "name": "gyors-site",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Static landing page for Gyors",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-html": "^3.2.2"
+  }
+}

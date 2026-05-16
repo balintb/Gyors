@@ -1,0 +1,59 @@
+[package]
+publish = false
+name = "gyors-providers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Built-in AI providers (`AiProvider`, `AiTransformsProvider`). On by
+# default. Disabling drops them from the registry so the launcher has
+# no `ai`/`ask` row and no `summarize|translate|explain|rewrite|fix`
+# transforms. Paired with WITH_AI=0 in scripts/build-app.sh.
+default = ["ai"]
+ai = []
+
+[dependencies]
+anyhow.workspace = true
+arc-swap.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+blake3.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+csv.workspace = true
+dirs.workspace = true
+emojis.workspace = true
+fend-core.workspace = true
+futures.workspace = true
+heck.workspace = true
+hmac = "0.12"
+hex.workspace = true
+image.workspace = true
+md5.workspace = true
+notify.workspace = true
+qrcode.workspace = true
+plist.workspace = true
+rand.workspace = true
+regex.workspace = true
+gyors-core = { path = "../gyors-core" }
+gyors-index = { path = "../gyors-index" }
+gyors-plugin-host = { path = "../gyors-plugin-host" }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+sha3.workspace = true
+strsim.workspace = true
+tokio.workspace = true
+toml.workspace = true
+tracing.workspace = true
+urlencoding.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

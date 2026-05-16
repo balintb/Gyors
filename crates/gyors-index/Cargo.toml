@@ -1,0 +1,26 @@
+[package]
+publish = false
+name = "gyors-index"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+# blake3 + hex are used by `clipboard_sync_id` to derive the
+# content-addressable id the cloud-sync engine uses for clipboard
+# rows. Living here (not in `gyors-sync`) means the index can
+# populate the `sync_id` column itself, so server-side delete
+# tombstones can find the local row to remove without the index
+# having to depend on the sync crate.
+blake3.workspace = true
+hex.workspace = true
+gyors-core = { path = "../gyors-core" }
+rusqlite.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

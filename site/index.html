@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Gyors · keyboard-first launcher for macOS</title>
+<meta name="description" content="Free and open source macOS launcher written in Rust" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<link rel="apple-touch-icon" href="assets/app-icon.svg" />
+<meta name="theme-color" content="#F97316" />
+<meta property="og:image" content="assets/app-icon.svg" />
+<link rel="preconnect" href="https://rsms.me/" />
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<style>
+  :root {
+    --bg: #0e0e10;
+    --panel: #17171b;
+    --panel-2: #1e1e24;
+    --line: #26262e;
+    --fg: #e8e8ec;
+    --muted: #8a8a94;
+    --dim: #5a5a64;
+    --accent: #F97316;
+    --accent-2: #FB923C;
+    --accent-3: #E11D48;
+    --gyors-gradient: linear-gradient(135deg, #FB923C 0%, #F97316 55%, #E11D48 100%);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #fafaf9;
+      --panel: #ffffff;
+      --panel-2: #f4f4f2;
+      --line: #e6e6e2;
+      --fg: #14141a;
+      --muted: #636370;
+      --dim: #9a9aa4;
+      --accent: #E11D48;
+      --accent-2: #F97316;
+      --accent-3: #FB923C;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--line); }
+  a:hover { border-bottom-color: var(--accent); }
+  kbd {
+    font-family: var(--mono);
+    font-size: 0.82em;
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: var(--panel-2);
+    color: var(--fg);
+  }
+  code { font-family: var(--mono); font-size: 0.92em; color: var(--accent); }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 56px 28px 96px; }
+
+  
+  .above-fold {
+    min-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 36px;
+  }
+  .above-fold .hero { margin: 0; }
+  .above-fold .mock { margin: 0; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 36px; }
+  .brand { display: inline-flex; align-items: center; text-decoration: none; border: 0; }
+  .brand img { display: block; height: 28px; width: auto; }
+  nav { display: flex; gap: 20px; font-size: 14px; color: var(--muted); }
+  nav a { color: var(--muted); border: none; }
+  nav a:hover { color: var(--fg); }
+  
+  nav a.nav-feedback { color: var(--accent); }
+  nav a.nav-feedback:hover { filter: brightness(1.15); }
+
+  .hero h1 {
+    font-size: clamp(34px, 5.2vw, 54px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: normal; color: var(--accent); }
+  .hero .pron {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--dim);
+    margin: -14px 0 18px;
+    letter-spacing: 0.01em;
+  }
+  .hero .pron .ipa { color: var(--muted); }
+  .hero p.lede {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 58ch;
+    margin: 0 0 32px;
+  }
+  .cta {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .cta .btn {
+    border: 1px solid var(--line);
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--fg);
+  }
+  .cta .btn.primary { background: var(--accent); color: #0e0e10; border-color: transparent; }
+  .cta .btn:hover { border-color: var(--accent); }
+  .cta .btn.primary:hover { filter: brightness(1.06); }
+
+  
+  .mock-stage {
+    position: relative;
+    isolation: isolate;
+    margin: 0;
+    
+    height: 270px;
+  }
+  .mock-stage::before {
+    content: "";
+    position: absolute;
+    inset: -8% -12%;
+    background:
+      
+      radial-gradient(closest-side at 50% 50%,
+        rgba(249,115,22,0.32), transparent 70%),
+      radial-gradient(closest-side at 28% 30%,
+        rgba(249,115,22,0.22), transparent 65%),
+      radial-gradient(closest-side at 76% 78%,
+        rgba(225,29,72,0.16), transparent 65%);
+    filter: blur(60px);
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.95;
+  }
+  .mock {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  
+  .mock .bar,
+  .mock ul {
+    background: rgba(23, 23, 27, 0.78);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 24px 60px -32px rgba(0,0,0,0.7),
+      0 0 0 1px rgba(255,255,255,0.02) inset;
+  }
+  @media (prefers-color-scheme: light) {
+    .mock .bar,
+    .mock ul { background: rgba(255, 255, 255, 0.82); }
+  }
+  .mock .bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px;
+  }
+  .mock .bar .input-line {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+    min-height: 28px;
+  }
+  .mock .bar .pills {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  
+  .mock .bar .pill {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 6px 10px;
+    background: rgba(249,115,22,0.22);
+    border: 1px solid rgba(249,115,22,0.35);
+    color: var(--fg);
+    border-radius: 7px;
+    white-space: nowrap;
+    animation: pill-in 0.18s ease-out;
+  }
+  @keyframes pill-in {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .mock .bar .text {
+    font-size: 19px;
+    font-weight: 300;
+    
+    line-height: 1.2;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+    white-space: pre;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .mock .bar .caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.05em;
+    margin-left: 1px;
+    vertical-align: -2px;
+    background: var(--accent);
+    animation: caret-blink 1.05s steps(2) infinite;
+  }
+  @keyframes caret-blink {
+    to { opacity: 0; }
+  }
+  
+  .mock .bar .ghost {
+    color: var(--dim);
+    font-size: 19px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+    transition: color 0.16s ease, opacity 0.16s ease;
+  }
+
+  
+  .mock-stage .key-indicator {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    z-index: 3;
+  }
+  .mock-stage .key-indicator .key {
+    font-family: var(--mono);
+    font-size: 64px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+    min-width: 180px;
+    min-height: 140px;
+    
+    display: grid;
+    place-items: center;
+    padding: 36px;
+    
+    background: rgba(8, 8, 12, 0.05);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    color: #ffffff;
+    border: none;
+    border-radius: 20px;
+    
+    animation: key-tap 0.32s ease forwards;
+  }
+  
+  @keyframes key-tap {
+    0%   { opacity: 1; transform: scale(1); }
+    31%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.96); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mock-stage .key-indicator .key { animation: none; }
+  }
+  .mock .bar .hk { color: var(--dim); font-family: var(--mono); font-size: 12px; }
+  
+  .mock ul {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+  }
+  
+  .mock ul:empty { display: none; }
+  .mock li {
+    
+    transition: background 0.18s ease;
+  }
+  
+  .mock li.row-in { animation: row-in 0.16s ease-out both; }
+  @keyframes row-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    .mock .bar .caret { animation: none; opacity: 0.5; }
+    .mock .bar .pill,
+    .mock li.row-in { animation: none; }
+  }
+  .mock li {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    
+    height: 48px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .mock li.on { background: var(--panel-2); }
+  .mock li .ico { width: 22px; height: 22px; border-radius: 5px; background: var(--panel-2); display:grid; place-items:center; font-family: var(--mono); font-size: 11px; color: var(--accent-2); border: 1px solid var(--line); }
+  .mock li.on .ico { background: var(--bg); }
+  .mock li .meta { color: var(--dim); font-family: var(--mono); font-size: 12px; }
+  .mock li .title { color: var(--fg); }
+  .mock li .sub { color: var(--muted); }
+  .mock li .sub::before { content: "·"; margin: 0 8px; color: var(--dim); }
+
+  
+  section { margin: 72px 0; }
+
+  
+  .unique {
+    border: 1px solid var(--accent);
+    border-radius: 14px;
+    padding: 28px 32px 32px;
+    background:
+      radial-gradient(120% 200% at 0% 0%, rgba(249,115,22,0.08), transparent 55%),
+      var(--panel);
+    box-shadow: 0 0 0 1px rgba(249,115,22,0.06) inset;
+  }
+  .unique .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 14px;
+  }
+  .unique h2 {
+    font-family: "Inter", system-ui, sans-serif;
+    font-size: clamp(22px, 3.2vw, 30px);
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    text-transform: none;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  .unique .lead {
+    color: var(--muted);
+    font-size: 16px;
+    margin: 0 0 22px;
+    max-width: 56ch;
+  }
+  .unique .pipe-demo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 14px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+  .unique .pipe-demo .stage {
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    white-space: nowrap;
+  }
+  .unique .pipe-demo .pipe {
+    color: var(--accent);
+    font-weight: 600;
+    padding: 0 2px;
+  }
+  .unique .footnote {
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    margin: 0;
+  }
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    font-weight: 500;
+    margin: 0 0 22px;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .feature {
+    background: var(--bg);
+    padding: 22px 24px;
+  }
+  .feature h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .feature h3 .dot { color: var(--accent); margin-right: 8px; font-family: var(--mono); }
+  .feature h3 .beta {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: 2px;
+    font-weight: 500;
+  }
+  .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+  .feature .try { margin-top: 12px; }
+  .feature .try-btn {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    background: rgba(249,115,22,0.08);
+    border: 1px solid var(--accent);
+    border-bottom-width: 1px;
+    border-radius: 6px;
+    padding: 5px 10px;
+    text-decoration: none;
+    transition: background 0.12s ease;
+  }
+  .feature .try-btn:hover {
+    background: rgba(249,115,22,0.16);
+    color: var(--accent);
+  }
+  @media (max-width: 640px) {
+    .features { grid-template-columns: 1fr; }
+  }
+
+  .cmd-table {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    font-size: 13.5px;
+  }
+  .cmd-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+    padding: 11px 18px;
+    border-top: 1px solid var(--line);
+  }
+  .cmd-row:first-child { border-top: none; }
+  .cmd-row code { color: var(--accent); }
+  .cmd-row span { color: var(--muted); }
+
+  .kbd-row { display: flex; flex-wrap: wrap; gap: 18px 28px; font-size: 14px; color: var(--muted); }
+  .kbd-row span { display: inline-flex; align-items: center; gap: 8px; }
+  .kbd-row .cfg { font-style: normal; color: var(--dim); font-size: 12px; }
+
+  footer {
+    margin-top: 96px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--muted); font-size: 13px; font-family: var(--mono);
+    flex-wrap: wrap; gap: 12px;
+  }
+  footer a { color: var(--muted); border: none; }
+  footer a:hover { color: var(--fg); }
+  .heart { color: #e06b8a; }
+  .note { color: var(--accent-2); }
+</style>
+
+<script async defer src='https://app.visitortracking.com/assets/js/tracer.js'></script>
+<script>
+function init_tracer() {
+  var tracer = new Tracer({
+    websiteId: "7399532e-3a53-4618-bfd2-44652b9cd54e",
+    async: true,
+    debug: false,
+  });
+}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <a class="brand" href="/" aria-label="Gyors home">
+      <img src="assets/wordmark.svg" alt="Gyors" height="28" />
+    </a>
+    <nav>
+      <a href="#features">features</a>
+      <a href="#commands">commands</a>
+      <a href="https://github.com/balintb/Gyors">source</a>
+      <a href="https://app.rapidforms.co/p/98a5b2?theme=dark" target="_blank" rel="noopener" class="nav-feedback">feedback</a>
+    </nav>
+  </header>
+
+  <div class="above-fold">
+
+  <section class="hero">
+    <h1>Keyboard-first launcher for macOS. <em>Just type.</em></h1>
+    <p class="pron">gyors <span class="ipa">/ˈɟors/</span>, Hungarian for fast.</p>
+    <p class="lede">
+      Apps, files, calc, clipboard, AI, notes, snippets, shell, repos, web search in one list. MIT.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/balintb/homebrew-tap">brew install balintb/tap/gyors</a>
+      <a class="btn" href="#features">read more</a>
+    </div>
+  </section>
+
+  <div class="mock-stage" aria-hidden="true">
+  <div class="key-indicator" id="key-indicator"></div>
+  <div class="mock" id="mock">
+    <div class="bar">
+      <div class="input-line">
+        <div class="pills" id="mock-pills"></div>
+        <div class="text" id="mock-text">note<span class="caret"></span></div>
+      </div>
+      <span class="hk"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>Space</kbd></span>
+    </div>
+    <ul id="mock-results">
+      <li class="on">
+        <span class="ico">›</span>
+        <span><span class="title">note [filter]</span><span class="sub">find &amp; open a markdown note</span></span>
+        <span class="meta">⏎</span>
+      </li>
+      <li>
+        <span class="ico">+</span>
+        <span><span class="title">New note…</span><span class="sub">type a title, then press enter</span></span>
+        <span class="meta">⌘N</span>
+      </li>
+      <li>
+        <span class="ico">cp</span>
+        <span><span class="title">### What happened today</span><span class="sub">clipboard · 3d ago</span></span>
+        <span class="meta">⏎</span>
+      </li>
+      <li>
+        <span class="ico">N</span>
+        <span><span class="title">Notes</span><span class="sub">application</span></span>
+        <span class="meta">⏎</span>
+      </li>
+    </ul>
+  </div>
+  </div>
+
+  </div>
+
+  <section class="unique" aria-labelledby="pipes-heading">
+    <h2 id="pipes-heading">Pipe one result into the next.</h2>
+    <p class="lead">The input box is a shell. Compose stages with <code>|</code>. Tab completes the next stage. The output of one provider becomes the input of the next.</p>
+    <div class="pipe-demo" aria-hidden="true">
+      <span class="stage">clip</span>
+      <span class="pipe">|</span>
+      <span class="stage">jq .name</span>
+      <span class="pipe">|</span>
+      <span class="stage">upper</span>
+      <span class="pipe">|</span>
+      <span class="stage">copy</span>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Goodies</h2>
+    <div class="features">
+      <div class="feature">
+        <h3><span class="dot">·</span>Native, not Electron</h3>
+        <p>Built in Rust. Renders before your finger leaves the spacebar.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>One list, no modes</h3>
+        <p>Apps, files, calc, clipboard, AI, web searches, notes. All ranked together. Just type.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Clipboard, searchable</h3>
+        <p><code>clip</code> pulls up your past copies, filtered as you type. URLs open. JSON pretty-prints. Hex colors swatch. Numbers convert. Timestamps decode. Emails compose.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>AI as a result</h3>
+        <p>Local Ollama by default. OpenAI / Anthropic with your own key. Summarize, explain, translate, rewrite, or just <code>ai why does my Mac do this</code>.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Calculator with units</h3>
+        <p><code>5 kg to lbs</code>. <code>3h 20m in s</code>. <code>2^10</code>. <code>15% of 89</code>. <code>0xff</code> &rarr; binary. Inline.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Notes + scratchpad</h3>
+        <p>Markdown notes, edited and saved without leaving the panel. Plus <code>scratch</code>, a one-keystroke jot drawer that's always there.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Snippets<span class="beta">beta</span></h3>
+        <p>Type <code>;sig;</code> anywhere and your signature lands. <code>;date;</code> &rarr; today. Defined once, expanded system-wide.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>History &amp; recall</h3>
+        <p>Up-arrow walks past queries. <code>!!</code> re-runs the last one. Frecency boosts what you actually use to the top.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Find any file</h3>
+        <p>Add <code>'</code> and Spotlight kicks in. Your most-touched files float up first.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Shell passthrough</h3>
+        <p><code>&gt;ls -la</code> runs in your login shell. Aliases and functions work.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>System actions</h3>
+        <p>Window management. Screenshots. Kill processes by name. Deep-link System Settings. Empty Trash. Lock screen. All keyboard.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Repo-aware</h3>
+        <p><code>repo riff</code> finds your local checkout, opens it in VS Code, jumps to GitHub, lists pull requests, runs <code>git status</code> inline.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Plugins</h3>
+        <p>JSON one-liners or process binaries. Validated and sandboxed. <code>gyors plugin scaffold mything</code> &rarr; you're shipping.</p>
+      </div>
+      <div class="feature">
+        <h3><span class="dot">·</span>Themeable</h3>
+        <p>Pick from the menu bar. Install community themes by clicking a <code>gyors://theme?import=…</code> link.</p>
+        <p class="try"><a class="try-btn" href="gyors://theme?import=eyJpZCI6ImVtYmVyIiwibGFiZWwiOiJFbWJlciIsInVzZXNfc3lzdGVtX21hdGVyaWFsIjpmYWxzZSwicGFuZWxfdGludCI6IiMxMjBjMTAiLCJiYWNrZ3JvdW5kX29wYWNpdHkiOjAuODgsInVzZXNfYmx1ciI6dHJ1ZSwiYWNjZW50IjoiI2Y5NzMxNiIsInByaW1hcnlfdGV4dCI6IiNmYmYzZWMiLCJzZWNvbmRhcnlfdGV4dCI6IiNhODliOTEiLCJ0ZXJ0aWFyeV90ZXh0IjoiIzZiNWU1NCIsImJvcmRlciI6IiMyYTFjMTQiLCJib3JkZXJfd2lkdGgiOjEuMCwiY29ybmVyX3JhZGl1cyI6MTQuMCwic2VsZWN0aW9uX29wYWNpdHkiOjAuMjJ9">Try it: install the Ember theme →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="commands">
+    <h2>Built-in keywords</h2>
+    <div class="cmd-table">
+      <div class="cmd-row"><code>g &lt;q&gt;  ·  gh  ·  so  ·  yt  ·  w  ·  npm</code><span>web search shortcuts</span></div>
+      <div class="cmd-row"><code>b64 / b64d  ·  url / urld</code><span>encode / decode text</span></div>
+      <div class="cmd-row"><code>md5  ·  sha1  ·  sha256  ·  blake3  ·  sha3</code><span>hex digests</span></div>
+      <div class="cmd-row"><code>#ff5733  ·  rgb 255 87 51  ·  hsl 11 100 60</code><span>color converter</span></div>
+      <div class="cmd-row"><code>now  ·  ts &lt;unix&gt;  ·  date +3d</code><span>time and date utilities</span></div>
+      <div class="cmd-row"><code>uuid  ·  uuid7  ·  passw [len]</code><span>generators</span></div>
+      <div class="cmd-row"><code>case &lt;kind&gt; &lt;text&gt;</code><span>snake / camel / pascal / kebab / constant / title</span></div>
+      <div class="cmd-row"><code>kill &lt;name&gt;</code><span>find process. SIGTERM by default, SIGKILL via <kbd>→</kbd></span></div>
+      <div class="cmd-row"><code>emoji &lt;s&gt;  ·  :s</code><span>find and copy emoji</span></div>
+      <div class="cmd-row"><code>qr &lt;text&gt;</code><span>copy QR image to clipboard</span></div>
+      <div class="cmd-row"><code>wm left  ·  wm full  ·  wm &lt;geom&gt;</code><span>resize / move current window</span></div>
+      <div class="cmd-row"><code>screen  ·  screen clip  ·  screen win</code><span>screenshots via <code>screencapture</code></span></div>
+      <div class="cmd-row"><code>repo [name]</code><span>jump to git repo in Finder, Terminal, or VS Code</span></div>
+      <div class="cmd-row"><code>def &lt;word&gt;</code><span>macOS Dictionary lookup</span></div>
+      <div class="cmd-row"><code>note [filter]  ·  note new &lt;title&gt;</code><span>find, open, and create markdown notes</span></div>
+      <div class="cmd-row"><code>ai &lt;q&gt;  ·  ask &lt;q&gt;</code><span>ask configured model</span></div>
+      <div class="cmd-row"><code>lock  ·  sleep  ·  trash  ·  restart  ·  logout</code><span>system commands</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Keys</h2>
+    <div class="kbd-row">
+      <span><kbd>⌥</kbd><kbd>⇧</kbd><kbd>Space</kbd> toggle <em class="cfg">(configurable)</em></span>
+      <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+      <span><kbd>⏎</kbd> run</span>
+      <span><kbd>→</kbd> actions</span>
+      <span><kbd>←</kbd> / <kbd>⎋</kbd> back</span>
+    </div>
+  </section>
+
+  <footer>
+    <span>MIT · pre-alpha</span>
+    <span>made with <span class="heart">♥</span> and <span class="note">♫</span> from Budapest, and the community</span>
+  </footer>
+
+</div>
+
+<script>
+
+(function () {
+  const mock = document.getElementById('mock');
+  const pillsEl = document.getElementById('mock-pills');
+  const textEl  = document.getElementById('mock-text');
+  const resEl   = document.getElementById('mock-results');
+  if (!mock || !pillsEl || !textEl || !resEl) return;
+
+  const reduced = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+
+  let typed = '';
+  let ghost = '';
+  let stopped = false;
+  let running = false;
+  const CARET = '<span class="caret"></span>';
+  const keyIndEl = document.getElementById('key-indicator');
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+  }
+  function renderText() {
+
+    let html = esc(typed) + CARET;
+    if (ghost) html += '<span class="ghost">' + esc(ghost) + '</span>';
+    textEl.innerHTML = html;
+  }
+  function setGhost(s) { ghost = s || ''; renderText(); }
+  function acceptGhost() {
+    if (!ghost) return;
+    typed += ghost;
+    ghost = '';
+    renderText();
+  }
+
+  function pressKey(label) {
+    if (!keyIndEl) return;
+    const el = document.createElement('span');
+    el.className = 'key';
+    el.textContent = label;
+    keyIndEl.appendChild(el);
+
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+  }
+  function clearInput() {
+    typed = '';
+    ghost = '';
+    pillsEl.innerHTML = '';
+    renderText();
+  }
+  function clearAll() {
+    clearInput();
+    resEl.innerHTML = '';
+  }
+  function commitPill(textOverride) {
+
+    const text = (textOverride !== undefined ? textOverride : typed);
+    if (!text) return;
+    const p = document.createElement('span');
+    p.className = 'pill';
+    p.textContent = text;
+    pillsEl.appendChild(p);
+    typed = '';
+    renderText();
+  }
+  function showResults(items, selectedIdx) {
+    resEl.innerHTML = '';
+    items.forEach((it, i) => {
+      const li = document.createElement('li');
+      li.className = 'row-in' + (i === selectedIdx ? ' on' : '');
+      li.style.animationDelay = (i * 25) + 'ms';
+      li.innerHTML =
+        '<span class="ico">' + esc(it.ico) + '</span>' +
+        '<span><span class="title">' + esc(it.title) +
+        '</span><span class="sub">' + esc(it.sub) + '</span></span>' +
+        '<span class="meta">' + esc(it.meta) + '</span>';
+      resEl.appendChild(li);
+    });
+  }
+
+  function setSelected(idx) {
+    const lis = resEl.children;
+    for (let i = 0; i < lis.length; i++) {
+      lis[i].classList.toggle('on', i === idx);
+    }
+  }
+
+  function setTopRowTitle(s) {
+    const t = resEl.querySelector('li .title');
+    if (t) t.textContent = s;
+  }
+
+  function setTopRow(opts) {
+    const row = resEl.querySelector('li');
+    if (!row) return;
+    if (opts.ico   !== undefined) row.querySelector('.ico').textContent   = opts.ico;
+    if (opts.title !== undefined) row.querySelector('.title').textContent = opts.title;
+    if (opts.sub   !== undefined) row.querySelector('.sub').textContent   = opts.sub;
+    if (opts.meta  !== undefined) row.querySelector('.meta').textContent  = opts.meta;
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function type(s, msPerChar) {
+    const arr = Array.from(s);
+    for (let i = 0; i < arr.length; i++) {
+      if (stopped) return;
+      typed += arr[i];
+      renderText();
+
+      if (i < arr.length - 1) {
+        await sleep(msPerChar + (Math.random() * 40 - 20));
+      }
+    }
+  }
+
+  async function typeLive(s, msPerChar, onTick) {
+    const arr = Array.from(s);
+    for (let i = 0; i < arr.length; i++) {
+      if (stopped) return;
+      typed += arr[i];
+      renderText();
+      onTick(typed);
+      if (i < arr.length - 1) {
+        await sleep(msPerChar + (Math.random() * 40 - 20));
+      }
+    }
+  }
+
+  const NOTE_RESULTS = [
+    { ico: '›',  title: 'note [filter]',           sub: 'find & open a markdown note',  meta: '⏎' },
+    { ico: '+',  title: 'New note…',               sub: 'type a title, then press enter', meta: '⌘N' },
+    { ico: 'cp', title: '### What happened today', sub: 'clipboard · 3d ago',           meta: '⏎' },
+    { ico: 'N',  title: 'Notes',                   sub: 'application',                  meta: '⏎' },
+  ];
+
+  async function actCalc() {
+    clearAll();
+    await sleep(550);
+    await type('5 kg to lbs', 90);
+    if (stopped) return;
+
+    showResults([
+      { ico: '=', title: '11.0231 lb', sub: 'calculator · ↵ copies the value', meta: '⏎' },
+    ], 0);
+    await sleep(1600);
+    if (stopped) return;
+    pressKey('↵');
+    await sleep(500);
+  }
+
+  async function actShell() {
+    clearAll();
+    await sleep(550);
+
+    await type('>', 110);
+    if (stopped) return;
+    await sleep(140);
+
+    let rowShown = false;
+    await typeLive('brew upgrade', 95, (cur) => {
+      const cmd = cur.slice(1);
+      if (!cmd) return;
+      if (!rowShown) {
+        showResults([
+          { ico: '>', title: 'Run: ' + cmd, sub: 'Execute via $SHELL', meta: '⏎' },
+        ], 0);
+        rowShown = true;
+      } else {
+        setTopRowTitle('Run: ' + cmd);
+      }
+    });
+    if (stopped) return;
+    await sleep(1300);
+    pressKey('↵');
+    await sleep(500);
+  }
+
+  async function actFile() {
+    clearAll();
+    await sleep(550);
+
+    await type("'b", 145);
+    if (stopped) return;
+    showResults([
+      { ico: 'tar', title: 'backup.tar.gz',          sub: '~/Downloads',          meta: '⏎' },
+      { ico: 'pdf', title: 'Q2-budget.pdf',          sub: '~/Documents/Finance', meta: '⏎' },
+      { ico: 'xls', title: 'team-budget-2026.xlsx',  sub: '~/Documents/Work',    meta: '⏎' },
+      { ico: 'doc', title: 'bookmarks.html',         sub: '~/Documents',         meta: '⏎' },
+    ], 0);
+
+    await sleep(520);
+    if (stopped) return;
+
+    await type('ud', 145);
+    if (stopped) return;
+    showResults([
+      { ico: 'pdf', title: 'Q2-budget.pdf',          sub: '~/Documents/Finance', meta: '⏎' },
+      { ico: 'xls', title: 'team-budget-2026.xlsx',  sub: '~/Documents/Work',    meta: '⏎' },
+      { ico: 'csv', title: 'budget-baseline.csv',    sub: '~/Templates',          meta: '⏎' },
+    ], 0);
+
+    await sleep(520);
+    if (stopped) return;
+
+    await type('get', 145);
+    if (stopped) return;
+    await sleep(1100);
+    pressKey('↵');
+    await sleep(500);
+  }
+
+  async function actNote() {
+    clearAll();
+    await sleep(550);
+    await type('note', 110);
+    if (stopped) return;
+
+    showResults(NOTE_RESULTS, 0);
+
+    await sleep(1000);
+    if (stopped) return;
+    pressKey('↓');
+    await sleep(150);
+    setSelected(1);
+    await sleep(850);
+    if (stopped) return;
+
+    pressKey('↵');
+    await sleep(220);
+    typed = 'newnote ';
+    renderText();
+    showResults([
+      { ico: '+', title: 'New note…', sub: 'Type a title, then press Enter (⌘N)', meta: '⏎' },
+    ], 0);
+    await sleep(420);
+
+    await typeLive('shopping list', 85, (cur) => {
+      const title = cur.slice('newnote '.length);
+      setTopRow({
+        ico: 'new',
+        title: 'Create note: ' + title,
+        sub: 'Notes/' + title.toLowerCase().replace(/\s+/g, '-') + '.md',
+      });
+    });
+    if (stopped) return;
+    await sleep(800);
+    pressKey('↵');
+    await sleep(500);
+  }
+
+  async function actPipe() {
+    clearAll();
+    await sleep(550);
+
+    await type('clip', 105);
+    if (stopped) return;
+    showResults([
+      { ico: 'src', title: 'clip', sub: 'source · pipe with ` | ` or ↵ to paste', meta: '⏎' },
+    ], 0);
+    await sleep(360);
+
+    await type('| ', 100);
+    if (stopped) return;
+    await sleep(70);
+    commitPill('clip');
+
+    await sleep(200);
+    await typeLive('jq .na', 100, (cur) => {
+      setTopRowTitle('clip → ' + cur);
+    });
+    if (stopped) return;
+    setGhost('me');
+    await sleep(700);
+    if (stopped) return;
+    pressKey('⇥');
+    await sleep(170);
+    acceptGhost();
+    setTopRowTitle('clip → ' + typed);
+    await sleep(360);
+
+    await type('| ', 100);
+    if (stopped) return;
+    await sleep(70);
+    commitPill('jq .name');
+    setTopRowTitle('clip → jq .name');
+
+    await sleep(200);
+    await typeLive('upper', 100, (cur) => {
+      setTopRowTitle('clip → jq .name → ' + cur);
+    });
+    if (stopped) return;
+    await sleep(280);
+
+    await type('| ', 100);
+    if (stopped) return;
+    await sleep(70);
+    commitPill('upper');
+    setTopRowTitle('clip → jq .name → upper');
+
+    await sleep(200);
+    await typeLive('copy', 110, (cur) => {
+      setTopRowTitle('clip → jq .name → upper → ' + cur);
+    });
+    if (stopped) return;
+    await sleep(380);
+
+    showResults([
+      { ico: 'run', title: 'clip → jq .name → upper → copy', sub: 'pipeline · ↵ runs the chain', meta: '⏎' },
+    ], 0);
+    await sleep(1600);
+    if (stopped) return;
+    pressKey('↵');
+    await sleep(500);
+  }
+
+  async function loop() {
+    if (running) return;
+    running = true;
+    try {
+
+      while (!stopped) {
+        await actCalc();
+        if (stopped) break;
+        await actPipe();
+        if (stopped) break;
+        await actShell();
+        if (stopped) break;
+        await actFile();
+        if (stopped) break;
+        await actNote();
+      }
+    } finally {
+      running = false;
+    }
+  }
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          stopped = false;
+          loop();
+        } else {
+          stopped = true;
+        }
+      }
+    }, { threshold: 0.35 });
+    io.observe(mock);
+  } else {
+
+    loop();
+  }
+})();
+</script>
+
+</body>
+</html>

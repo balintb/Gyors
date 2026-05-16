@@ -1,0 +1,53 @@
+[package]
+publish = false
+name = "gyors-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[features]
+# Cloud sync (gyors-cloud). On by default. Build with
+# `--no-default-features` (or via scripts/build-app.sh WITH_CLOUD=0)
+# to produce a launcher with no sync surface: no FFI symbols, no
+# background tick, no settings/clipboard outbox enqueue. The Swift
+# shell pairs this with `#if CLOUD` guards around the SyncPanel +
+# menu item so call sites disappear too.
+#
+# AI providers (`AiProvider` + `AiTransformsProvider`). On by
+# default; WITH_AI=0 disables them in gyors-providers and skips the
+# registration here, plus drops the AI chain pipeline (`summarize |
+# copy`, `ai foo | upper`, etc.) entirely.
+default = ["cloud", "ai"]
+cloud = ["dep:gyors-sync"]
+ai = ["gyors-providers/ai"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+dirs.workspace = true
+heck.workspace = true
+md5.workspace = true
+gyors-core = { path = "../gyors-core" }
+gyors-index = { path = "../gyors-index" }
+gyors-plugin-host = { path = "../gyors-plugin-host" }
+gyors-providers = { path = "../gyors-providers", default-features = false }
+gyors-sync = { path = "../gyors-sync", optional = true }
+serde.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+# Sandbox test env: ffi_tests build a tempdir with known config +
+# fixture notes so the suite never reads or writes the developer's
+# real `~/Library/Application Support/Gyors/` or notes folder.
+tempfile = "3"

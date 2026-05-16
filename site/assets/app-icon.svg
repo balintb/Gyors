@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="55%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#E11D48"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="28%" cy="22%" r="70%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="60%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="225" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="225" fill="url(#glow)"/>
+  <g fill="#FFFFFF" font-family="ui-sans-serif, system-ui, -apple-system, 'Inter', 'Helvetica Neue', sans-serif" font-weight="700">
+    <text x="512" y="500" text-anchor="middle" font-size="270" letter-spacing="-10">gyo</text>
+    <text x="512" y="780" text-anchor="middle" font-size="270" letter-spacing="-10">.rs</text>
+    <line x1="320" y1="560" x2="704" y2="560" stroke="#FFFFFF" stroke-width="6" opacity="0.3"/>
+  </g>
+</svg>
